@@ -37,7 +37,7 @@
 ## 보안
 - 키는 `.env` 의 `OPENAI_API_KEY` 하나. `.env` 는 `.gitignore`, `.env.example` 은 이름만
 - 배포는 Streamlit Secrets. 브라우저 코드(HTML · JS)에 키 금지
-- 기본 모델은 `gpt-6-luna` (`.env` 의 `OPENAI_MODEL`). 비싼 모델로 바꾸려면 먼저 말해
+- 모델은 `gpt-4o-mini` 로 고정 (`llm.py` 의 `MODEL`). `.env` 로 바꾸지 않는다. 다른 모델로 바꾸려면 먼저 말해
 
 ## 끝나면 스스로 점검 (표로 알려 줘)
 | 점검 | 확인 방법 |

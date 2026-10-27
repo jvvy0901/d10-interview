@@ -7,7 +7,7 @@ from openai import OpenAI
 
 load_dotenv()
 
-DEFAULT_MODEL = "gpt-6-luna"
+MODEL = "gpt-4o-mini"
 
 
 class LLMError(Exception):
@@ -19,11 +19,10 @@ def ask_json(instructions, user_input, schema, name):
     if not api_key:
         raise LLMError(".env 에 OPENAI_API_KEY 가 없어요. 키를 넣고 다시 실행해 주세요.")
 
-    model = os.getenv("OPENAI_MODEL") or DEFAULT_MODEL
     try:
         client = OpenAI(api_key=api_key)
         response = client.responses.create(
-            model=model,
+            model=MODEL,
             instructions=instructions,
             input=user_input,
             text={
@@ -45,6 +44,6 @@ def ask_json(instructions, user_input, schema, name):
     except (openai.APIConnectionError, openai.APITimeoutError):
         raise LLMError("OpenAI 에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.") from None
     except openai.NotFoundError:
-        raise LLMError("모델을 찾을 수 없어요. .env 의 OPENAI_MODEL 을 확인해 주세요.") from None
+        raise LLMError("모델을 사용할 수 없어요. 계정에서 gpt-4o-mini 권한을 확인해 주세요.") from None
     except (openai.APIError, json.JSONDecodeError):
         raise LLMError("AI 응답을 받지 못했어요. 잠시 뒤에 다시 시도해 주세요.") from None
