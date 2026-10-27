@@ -1,4 +1,5 @@
 from datetime import date
+from pathlib import Path
 
 import streamlit as st
 
@@ -6,7 +7,7 @@ import coach
 from llm import LLMError, ask_json
 from prompts import EVAL_SCHEMA, INTERVIEWER_SCHEMA, RETRY_SCHEMA
 
-st.set_page_config(page_title="AI 면접 코치", page_icon="🎤")
+st.set_page_config(page_title="그로밋 GROWMEET", layout="wide")
 
 DEFAULTS = {
     "stage": "start",  # start → interview → done
@@ -22,12 +23,23 @@ DEFAULTS = {
     "retries": {},  # 질문 번호 → {answer, after}
 }
 
+STEPS = [
+    ("면접 5문제", "자기소개부터 상황 질문까지, 꼬리 질문은 문제당 최대 1개예요"),
+    ("위원 4명의 평가", "답변마다 기준 4가지로 점수를 받고, 약한 점을 확인해요"),
+    ("고친 답으로 재도전", "다시 답하고 전후 점수를 비교해요"),
+]
+
 CRITERIA_LABELS = {
     "specific": "구체성",
     "relevance": "직무 연관",
     "structure": "구조",
     "evidence": "근거 · 검증",
 }
+
+
+def load_style():
+    css = (Path(__file__).parent / "style.css").read_text(encoding="utf-8")
+    st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
 
 def reset():
@@ -87,7 +99,7 @@ def handle_answer(answer):
 
     # 꼬리 질문을 이미 했으면 AI 가 더 묻자고 해도 넘어간다 (reply 에 꼬리 질문이 섞여 있어 쓰지 않는다)
     if result["follow_up"]:
-        s.messages.append(("assistant", "충분히 들었어요. 다음 질문으로 넘어갈게요."))
+        s.messages.append(("assistant", "충분히 들었어요. 다음 질문으로 넘어갈게요"))
     else:
         s.messages.append(("assistant", result["reply"]))
         turns = turns + [("면접관", result["reply"])]
@@ -101,26 +113,49 @@ def handle_answer(answer):
 
 
 def start_screen():
-    st.title("AI 면접 코치")
-    st.caption("직군과 내 경험을 알려 주면 면접관이 5문제를 물어봐요.")
-    with st.form("start"):
-        name = st.text_input("이름")
-        job = st.selectbox("직군", coach.JOBS, index=coach.JOBS.index("디자인"))
+    hero, form = st.columns([7, 5], gap="large")
+    with hero:
+        steps = "".join(
+            f'<li><span class="gm-step-no">{i}</span><div><p class="gm-step-title">{title}</p>'
+            f'<p class="gm-step-sub">{sub}</p></div></li>'
+            for i, (title, sub) in enumerate(STEPS, 1)
+        )
+        st.markdown(
+            '<p class="gm-eyebrow">AI 모의면접 코치</p>'
+            '<h1 class="gm-hero-title">답할수록 자라는 면접 연습</h1>'
+            '<p class="gm-hero-sub">직군과 내 경험을 적으면 면접관이 질문해요. '
+            "위원 4명의 평가를 받고, 고친 답으로 다시 도전해 보세요</p>"
+            f'<ol class="gm-steps">{steps}</ol>'
+            '<p class="gm-name"><b>그로밋</b> = Grow + Meet · 면접을 통해 성장해요</p>',
+            unsafe_allow_html=True,
+        )
+    with form, st.form("start"):
+        st.markdown(
+            '<p class="gm-card-title">면접 정보를 알려 주세요</p>'
+            '<p class="gm-card-sub">적은 내용 안에서만 면접관이 질문해요</p>',
+            unsafe_allow_html=True,
+        )
+        name = st.text_input("이름", placeholder="이름을 입력하세요")
+        job = st.pills("직군", coach.JOBS, default="디자인")
         company = st.text_input("회사", value="클래스로")
         experience = st.text_area(
             "내 경험", height=160,
-            placeholder="수업 · 팀플 · 개인 프로젝트 등 면접에서 이야기하고 싶은 경험을 적어 주세요.",
+            placeholder="수업, 팀플, 개인 프로젝트 등 면접에서 이야기하고 싶은 경험을 적어 주세요",
         )
-        submitted = st.form_submit_button("면접 시작")
+        st.caption(f"{coach.MIN_EXPERIENCE_CHARS}자 이상 적어 주세요")
+        submitted = st.form_submit_button("면접 시작하기", type="primary", width="stretch")
+    notice = form.container()
 
     if not submitted:
         return
     name, company, experience = name.strip(), company.strip(), experience.strip()
     if not name or not company:
-        st.warning("이름과 회사를 적어 주세요.")
+        notice.warning("이름과 회사를 적어 주세요")
+    elif not job:
+        notice.warning("직군을 골라 주세요")
     elif len(experience) < coach.MIN_EXPERIENCE_CHARS:
-        st.warning(
-            f"경험을 {coach.MIN_EXPERIENCE_CHARS}자 이상 적어 주세요. (지금 {len(experience)}자)"
+        notice.warning(
+            f"경험을 {coach.MIN_EXPERIENCE_CHARS}자 이상 적어 주세요 (지금 {len(experience)}자)"
         )
     else:
         try:
@@ -128,7 +163,7 @@ def start_screen():
                 {"name": name, "job": job, "company": company, "experience": experience}
             )
         except (ValueError, OSError) as e:
-            st.error(f"질문을 불러오지 못했어요. data/questions.csv 를 확인해 주세요. ({e})")
+            notice.error(f"질문을 불러오지 못했어요. data/questions.csv 를 확인해 주세요 ({e})")
             return
         st.rerun()
 
@@ -162,7 +197,7 @@ def run_evaluation():
 
 def evaluation_tab():
     s = st.session_state
-    if st.button("위원 4명에게 평가받기"):
+    if st.button("위원 4명에게 평가받기", type="primary"):
         with st.spinner("위원 4명이 따로 보고 있어요..."):
             run_evaluation()
 
@@ -224,12 +259,12 @@ def run_retry(no, question, answer):
 def retry_tab():
     s = st.session_state
     if not s.evaluation:
-        st.info("먼저 '📊 평가' 탭에서 평가를 받아 주세요.")
+        st.info("먼저 '평가' 탭에서 평가를 받아 주세요")
         return
 
     ordered = coach.lowest_first(s.evaluation["answers"])
     if not ordered:
-        st.info("다시 답할 질문이 없어요.")
+        st.info("다시 답할 질문이 없어요")
         return
 
     questions = {r["no"]: r["question"] for r in s.records}
@@ -250,9 +285,9 @@ def retry_tab():
                 st.markdown(f"**{who}** · {text}")
 
     answer = st.text_area("다시 답하기", key=f"retry_answer_{no}", height=160)
-    if st.button("다시 채점", key=f"retry_button_{no}"):
+    if st.button("다시 채점", key=f"retry_button_{no}", type="primary"):
         if not answer.strip():
-            st.warning("답을 적은 뒤에 눌러 주세요.")
+            st.warning("답을 적은 뒤에 눌러 주세요")
         else:
             with st.spinner("다시 채점하고 있어요..."):
                 run_retry(no, questions.get(no, ""), answer.strip())
@@ -289,10 +324,10 @@ def interview_screen():
     st.title(f"{s.profile['company']} · {s.profile['job']} 면접")
 
     if s.stage == "done":
-        chat_tab, eval_tab, retry_tab_ = st.tabs(["🎤 면접", "📊 평가", "🔁 재도전"])
+        chat_tab, eval_tab, retry_tab_ = st.tabs(["면접", "평가", "재도전"])
         with chat_tab:
             chat_history()
-            st.success("면접이 끝났어요. '📊 평가' 탭에서 위원 4명에게 평가받아 보세요.")
+            st.success("면접이 끝났어요. '평가' 탭에서 위원 4명에게 평가받아 보세요")
         with eval_tab:
             evaluation_tab()
         with retry_tab_:
@@ -311,7 +346,7 @@ def interview_screen():
     answer = st.chat_input("답변을 입력하세요")
     if answer:
         if not answer.strip():
-            st.info("답변을 적어 주세요.")
+            st.info("답변을 적어 주세요")
         else:
             with st.chat_message("user"):
                 st.markdown(answer)
@@ -320,6 +355,7 @@ def interview_screen():
 
 
 init_state()
+load_style()
 if st.session_state.stage == "start":
     start_screen()
 else:
