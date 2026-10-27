@@ -1,0 +1,16 @@
+# 키 · 비밀값
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 에디터 · OS
+.vscode/
+.idea/
+.DS_Store
